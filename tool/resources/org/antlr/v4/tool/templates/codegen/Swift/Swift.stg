@@ -232,18 +232,12 @@ Parser(parser, funcs, atn, sempredFuncs, superClass) ::= <<
 >>
 
 Parser_(parser, funcs, atn, sempredFuncs, ctor, superClass) ::= <<
-<!//@SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})!>
 <accessLevelOpenOK(parser)> class <parser.name>: <superClass; null="Parser"> {
 
-	internal static var _decisionToDFA: [DFA] = {
-          var decisionToDFA = [DFA]()
-          let length = <parser.name>._ATN.getNumberOfDecisions()
-          for i in 0..\<length {
-           <!// decisionToDFA[i] = DFA(<parser.name>._ATN.getDecisionState(i)!, i);!>
-            decisionToDFA.append(DFA(<parser.name>._ATN.getDecisionState(i)!, i))
-           }
-           return decisionToDFA
-     }()
+	internal static let _decisionToDFA: [DFA] =
+		<parser.name>._ATN.decisionToState.enumerated().map { x in
+			DFA(x.element, x.offset)
+		}
 
 	internal static let _sharedContextCache = PredictionContextCache()
 
@@ -290,7 +284,6 @@ case  <f.ruleIndex>:
 	return try <f.name>_sempred(_localctx?.castdown(<f.ctxType>.self), predIndex)}; separator="\n">
 	    default: return true
 		}
-		<!return true;!>
 	}
 	<sempredFuncs.values; separator="\n">
 <endif>
@@ -339,7 +332,6 @@ case <f.ruleIndex>:
 	return try <f.name>_sempred(_localctx?.castdown(<f.ctxType>.self), predIndex)}; separator="\n">
 	default: return true
 	}
-	<!return true;!>
 }
 <sempredFuncs.values; separator="\n">
 <endif>
@@ -386,7 +378,6 @@ private func <r.name>_sempred(_ _localctx: <r.ctxType>!,  _ predIndex: Int) thro
     case <index>:return <actions.(index)>}; separator="\n">
 	    default: return true
 	}
-	<!return true;!>
 }
 >>
 
@@ -395,7 +386,7 @@ RuleFunction(currentRule,args,code,locals,ruleCtx,altLabelCtxs,namedActions,fina
 <altLabelCtxs:{l | <altLabelCtxs.(l)>}; separator="\n">
 @discardableResult
 <if(currentRule.modifiers)><currentRule.modifiers:{f | <f> }><else> <accessLevelOpenOK(parser)> func <endif><currentRule.name>(<if(first(args))>_ <endif><args; separator=", _">) throws -> <currentRule.ctxType> {
-	var _localctx: <currentRule.ctxType> = <currentRule.ctxType>(_ctx, getState()<currentRule.args:{a | , <a.name>}>)
+	var _localctx = <currentRule.ctxType>(_ctx, getState()<currentRule.args:{a | , <a.name>}>)
 	try enterRule(_localctx, <currentRule.startState>, <parser.name>.RULE_<currentRule.name>)
 	<namedActions.init>
 	<locals; separator="\n">
@@ -437,11 +428,11 @@ LeftRecursiveRuleFunction(currentRule,args,code,locals,ruleCtx,altLabelCtxs,
 }
 @discardableResult
 private func <currentRule.name>(_ _p<args:{a | , <a>}>: Int) throws -> <currentRule.ctxType>   {
-	let _parentctx: ParserRuleContext? = _ctx
-	var _parentState: Int = getState()
-	var _localctx: <currentRule.ctxType> = <currentRule.ctxType>(_ctx, _parentState<currentRule.args:{a | , <a.name>}>)
-	var  _prevctx: <currentRule.ctxType> = _localctx
-	var _startState: Int = <currentRule.startState>
+	let _parentctx = _ctx
+	let _parentState = getState()
+	var _localctx = <currentRule.ctxType>(_ctx, _parentState<currentRule.args:{a | , <a.name>}>)
+	var _prevctx = _localctx
+	let _startState = <currentRule.startState>
 	try enterRecursionRule(_localctx, <currentRule.startState>, <parser.name>.RULE_<currentRule.name>, _p)
 	<namedActions.init>
 	<locals; separator="\n">
@@ -608,34 +599,21 @@ Sync(s) ::= "sync(<s.expecting.name>);"
 ThrowNoViableAlt(t) ::= "throw ANTLRException.recognition(e: NoViableAltException(self))"
 
 TestSetInline(s) ::= <<
-<!<s.bitsets:{bits | <if(rest(rest(bits.ttypes)))><bitsetBitfieldComparison(s, bits)><else><bitsetInlineComparison(s, bits)><endif>}; separator=" || ">!>
- //closure
- { () -> Bool in
-      <if(rest(s.bitsets))>var<else>let<endif> testSet: Bool = <first(s.bitsets):{bits | <if(rest(rest(bits.ttypes)))><bitsetBitfieldComparison(s, bits)><else><bitsetInlineComparison(s, bits)><endif>}>
-          <rest(s.bitsets):{bits | testSet = testSet || <if(rest(rest(bits.ttypes)))><bitsetBitfieldComparison(s, bits)><else><bitsetInlineComparison(s, bits)><endif>}; separator="\n">
-      return testSet
- }()
+<s.bitsets:{bits | <if(rest(rest(bits.ttypes)))><bitsetBitfieldComparison(s, bits)><else><bitsetInlineComparison(s, bits)><endif>}; separator=" || ">
 >>
 
-// Java language spec 15.19 - shift operators mask operands rather than overflow to 0... need range test
-testShiftInRange(shiftAmount) ::= <<
-((<shiftAmount>) & ~0x3f) == 0
->>
+testShiftInRange(shiftAmount) ::= <%
+ ((<shiftAmount>) & ~0x3f) == 0
+%>
+
+testShiftedAgainstMask(shiftAmount, mask) ::= <%
+ (UInt64(1) \<\< (<shiftAmount>)) & <mask> != 0
+%>
 
 // produces smaller bytecode only when bits.ttypes contains more than two items
 bitsetBitfieldComparison(s, bits) ::= <<
-<!(<testShiftInRange({<offsetShift(s.varName, bits.shift)>})> && ((1 \<\< <offsetShift(s.varName, bits.shift)>) & (<bits.ttypes:{ttype | (1 \<\< <offsetShift(ttype, bits.shift)>)}; separator=" | ">)) != 0)!>
-{  () -> Bool in
-    <! let test: Bool = (<testShiftInRange({<offsetShift(s.varName, bits.shift)>})>)!>
-   <!var temp: Int64 =  Int64(<offsetShift(s.varName, bits.shift)>)!>
-   <!temp = (temp \< 0) ? (64 + (temp % 64 )) : (temp % 64)!>
-   <!let test1: Int64 = (Int64(1) \<\< temp)!>
-   <!var test2: Int64 = (<first(bits.ttypes):{ttype | Utils.bitLeftShift(<offsetShift(parserName(ttype), bits.shift)>)}>)!>
-   <!<rest(bits.ttypes):{ttype | test2 = test2 | Utils.bitLeftShift(<offsetShift(parserName(ttype), bits.shift)>)}; separator="\n">!>
-   let testArray: [Int] = [<s.varName>, <bits.ttypes:{ttype |<parserName(ttype)>}; separator=",">]
-   <!var test2: Int64 = Utils.testBitLeftShiftArray(testArray)!>
-    return  Utils.testBitLeftShiftArray(testArray, <bits.shift>)
-}()
+((<testShiftInRange(offsetShift(s.varName, bits.shift))>) &&
+ (<testShiftedAgainstMask(offsetShift(s.varName, bits.shift), bits)>))
 >>
 
 isZero ::= [
@@ -645,13 +623,16 @@ default: false
 parserName(ttype) ::= <%
  <parser.name>.Tokens.<ttype>.rawValue
 %>
+tokenNumber(ttype) ::= <%
+ <parser.tokens.(ttype); null="-1">
+%>
 offsetShift(shiftAmount, offset) ::= <%
 <if(!isZero.(offset))>(<shiftAmount> - <offset>)<else><shiftAmount><endif>
 %>
 
 // produces more efficient bytecode when bits.ttypes contains at most two items
 bitsetInlineComparison(s, bits) ::= <%
-<bits.ttypes:{ttype | <s.varName> == <parser.name>.Tokens.<ttype>.rawValue}; separator=" || ">
+<bits.ttypes:{ttype | <s.varName> == <tokenNumber(ttype)>}; separator=" || ">
 %>
 
 cases(ttypes) ::= <<
@@ -662,21 +643,21 @@ cases(ttypes) ::= <<
 InvokeRule(r, argExprsChunks) ::= <<
 setState(<r.stateNumber>)
 <if(r.labels)>
-try {
+do {
 		let assignmentValue = try <r.name>(<if(r.ast.options.p)><r.ast.options.p><if(argExprsChunks)>,<endif><endif><argExprsChunks>)
 		<r.labels:{l | <labelref(l)> = assignmentValue} ; separator="\n">
-     }()
+     }
 <else>try <r.name>(<if(r.ast.options.p)><r.ast.options.p><if(argExprsChunks)>,<endif><endif><argExprsChunks>)<endif>
 >>
 
 MatchToken(m) ::= <<
 setState(<m.stateNumber>)
 <if(m.labels)>
-try {
-		let assignmentValue = try match(<parser.name>.Tokens.<m.name>.rawValue)
+do {
+		let assignmentValue = try match(<tokenNumber(m.name)>)
 		<m.labels:{l | <labelref(l)> = assignmentValue}  ; separator="\n">
-     }()
-<else>try match(<parser.name>.Tokens.<m.name>.rawValue)<endif>
+     }
+<else>try match(<tokenNumber(m.name)>)<endif>
 >>
 
 MatchSet(m, expr, capture) ::= "<CommonSetStuff(m, expr, capture, false)>"
@@ -781,19 +762,19 @@ RuleContextListDecl(rdecl) ::= "<rdecl.name>: [<rdecl.ctxName>] = [<rdecl.ctxNam
 ContextTokenGetterDecl(t) ::= <<
 	<accessLevelOpenOK(parser)>
 	func <t.name>() -> TerminalNode? {
-		return getToken(<parser.name>.Tokens.<t.name>.rawValue, 0)
+		return getToken(<tokenNumber(t.name)>, 0)
 	}
 >>
 ContextTokenListGetterDecl(t) ::= <<
 	<accessLevelOpenOK(parser)>
 	func <t.name>() -> [TerminalNode] {
-		return getTokens(<parser.name>.Tokens.<t.name>.rawValue)
+		return getTokens(<tokenNumber(t.name)>)
 	}
 >>
 ContextTokenListIndexedGetterDecl(t) ::= <<
 	<accessLevelOpenOK(parser)>
 	func <t.name>(_ i:Int) -> TerminalNode? {
-		return getToken(<parser.name>.Tokens.<t.name>.rawValue, i)
+		return getToken(<tokenNumber(t.name)>, i)
 	}
 >>
 ContextRuleGetterDecl(r) ::= <<
@@ -836,7 +817,6 @@ StructDecl(struct,ctorAttrs,attrs,getters,dispatchMethods,interfaces,extensionMe
 <accessLevelNotOpen(parser)> class <struct.name>: <if(contextSuperClass)><contextSuperClass><else>ParserRuleContext<endif><if(interfaces)>, <interfaces; separator=", "><endif> {
 	<attrs:{a | <accessLevelOpenOK(parser)> var <a>}; separator="\n">
 	<getters:{g | <g>}; separator="\n">
-	<! <if(ctorAttrs)> <accessLevelNotOpen(parser)> init(_ parent: ParserRuleContext,_ invokingState: Int) { super.init(parent, invokingState)  }<endif> !>
 	<if(ctorAttrs)>
 	<accessLevelNotOpen(parser)> convenience init(_ parent: ParserRuleContext?, _ invokingState: Int<ctorAttrs:{a | , _ <a>}>) {
 		self.init(parent, invokingState)
@@ -849,7 +829,6 @@ StructDecl(struct,ctorAttrs,attrs,getters,dispatchMethods,interfaces,extensionMe
 		return <parser.name>.RULE_<struct.derivedFromName>
 	}
 <if(struct.provideCopyFrom)> <! don't need copy unless we have subclasses !>
-	<! <accessLevelNotOpen(parser)> init() { }!>
 	<accessLevelOpenOK(parser)>
 	func copyFrom(_ ctx: <struct.name>) {
 		super.copyFrom(ctx)
@@ -964,15 +943,10 @@ import Antlr4
 Lexer(lexer, atn, actionFuncs, sempredFuncs, superClass) ::= <<
 <accessLevelOpenOK(lexer)> class <lexer.name>: <superClass; null="Lexer"> {
 
-	internal static var _decisionToDFA: [DFA] = {
-          var decisionToDFA = [DFA]()
-          let length = <lexer.name>._ATN.getNumberOfDecisions()
-          for i in 0..\<length {
-            <! decisionToDFA[i] = DFA(<lexer.name>._ATN.getDecisionState(i)!, i);!>
-          	    decisionToDFA.append(DFA(<lexer.name>._ATN.getDecisionState(i)!, i))
-          }
-           return decisionToDFA
-     }()
+	internal static let _decisionToDFA: [DFA] =
+		<lexer.name>._ATN.decisionToState.enumerated().map { x in
+			DFA(x.element, x.offset)
+		}
 
 	internal static let _sharedContextCache = PredictionContextCache()
 
